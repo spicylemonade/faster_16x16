@@ -171,350 +171,243 @@ class Block:
 # ----------------------------
 def alphaevolve_rank48_4x4(A, B):
     """
-    AlphaEvolve's optimized algorithm for 4×4 matrices.
-    Uses exactly 48 scalar multiplications.
+    Rational-coefficient rank-48 4×4 algorithm (SLP from helper).
+    Uses exactly 48 bilinear multiplications.
     """
-    # Check if we're dealing with MulCounter or Block objects (need object dtype)
-    sample = A[0, 0]
-    use_object_dtype = isinstance(sample, (MulCounter, Block))
-    
-    # Check if we're dealing with real matrices for potential optimizations
-    is_real_input = not use_object_dtype and np.isrealobj(A) and np.isrealobj(B)
-    
-    # Initialize the result matrix - use appropriate dtype
-    out_dtype = object if use_object_dtype else np.complex128
-    C = np.zeros((4, 4), dtype=out_dtype)
-    
-    # Cache commonly used constants
-    half = 0.5
-    half_j = 0.5j
-    half_p_half_j = 0.5 + 0.5j
-    half_m_half_j = 0.5 - 0.5j
-    neg_half = -0.5
-    neg_half_j = -0.5j
-    
-    # Cache matrix values to avoid repeated memory access
-    A00, A01, A02, A03 = A[0,0], A[0,1], A[0,2], A[0,3]
-    A10, A11, A12, A13 = A[1,0], A[1,1], A[1,2], A[1,3]
-    A20, A21, A22, A23 = A[2,0], A[2,1], A[2,2], A[2,3]
-    A30, A31, A32, A33 = A[3,0], A[3,1], A[3,2], A[3,3]
-    
-    B00, B01, B02, B03 = B[0,0], B[0,1], B[0,2], B[0,3]
-    B10, B11, B12, B13 = B[1,0], B[1,1], B[1,2], B[1,3]
-    B20, B21, B22, B23 = B[2,0], B[2,1], B[2,2], B[2,3]
-    B30, B31, B32, B33 = B[3,0], B[3,1], B[3,2], B[3,3]
-    
-    # Linear combinations of elements from A - computed once and stored
-    a0 = half_p_half_j*A00 + half_p_half_j*A01 + half_m_half_j*A10 + half_m_half_j*A11 + half_m_half_j*A20 + half_m_half_j*A21 + half_m_half_j*A30 + half_m_half_j*A31
-    a1 = half_p_half_j*A00 + (neg_half+half_j)*A03 + half_p_half_j*A10 + (neg_half+half_j)*A13 + (neg_half+neg_half_j)*A20 + half_m_half_j*A23 + half_m_half_j*A30 + half_p_half_j*A33
-    a2 = neg_half*A01 + half*A02 + neg_half_j*A11 + half_j*A12 + half_j*A21 + neg_half_j*A22 + neg_half_j*A31 + half_j*A32
-    a3 = neg_half_j*A00 + neg_half*A01 + half*A02 + neg_half*A03 + half_j*A10 + neg_half*A11 + half*A12 + half*A13 + neg_half_j*A20 + neg_half*A21 + half*A22 + neg_half*A23 + neg_half*A30 + neg_half_j*A31 + half_j*A32 + half_j*A33
-    a4 = half_p_half_j*A00 + (neg_half+neg_half_j)*A01 + (neg_half+half_j)*A10 + half_m_half_j*A11 + (neg_half+half_j)*A20 + half_m_half_j*A21 + half_m_half_j*A30 + (neg_half+half_j)*A31
-    a5 = half_m_half_j*A02 + (neg_half+neg_half_j)*A03 + half_m_half_j*A12 + (neg_half+neg_half_j)*A13 + (neg_half+half_j)*A22 + half_p_half_j*A23 + (neg_half+neg_half_j)*A32 + (neg_half+half_j)*A33
-    a6 = half_j*A00 + half*A03 + neg_half*A10 + half_j*A13 + half*A20 + neg_half_j*A23 + neg_half*A30 + half_j*A33
-    a7 = half_p_half_j*A00 + (neg_half+neg_half_j)*A01 + (neg_half+neg_half_j)*A10 + half_p_half_j*A11 + (neg_half+neg_half_j)*A20 + half_p_half_j*A21 + (neg_half+half_j)*A30 + half_m_half_j*A31
-    a8 = neg_half_j*A00 + neg_half_j*A01 + neg_half*A02 + neg_half_j*A03 + half*A10 + half*A11 + neg_half_j*A12 + half*A13 + neg_half*A20 + neg_half*A21 + neg_half_j*A22 + half*A23 + half*A30 + half*A31 + half_j*A32 + neg_half*A33
-    a9 = (neg_half+half_j)*A00 + (neg_half+neg_half_j)*A03 + half_p_half_j*A10 + (neg_half+half_j)*A13 + (neg_half+neg_half_j)*A20 + half_m_half_j*A23 + (neg_half+neg_half_j)*A30 + half_m_half_j*A33
-    a10 = (neg_half+half_j)*A00 + half_m_half_j*A01 + (neg_half+half_j)*A10 + half_m_half_j*A11 + half_m_half_j*A20 + (neg_half+half_j)*A21 + half_p_half_j*A30 + (neg_half+neg_half_j)*A31
-    
-    # Continue with the remaining a values
-    a11 = half*A00 + half*A01 + neg_half_j*A02 + neg_half*A03 + neg_half*A10 + neg_half*A11 + half_j*A12 + half*A13 + half*A20 + half*A21 + half_j*A22 + half*A23 + neg_half_j*A30 + neg_half_j*A31 + half*A32 + neg_half_j*A33
-    a12 = half_p_half_j*A01 + (neg_half+neg_half_j)*A02 + (neg_half+half_j)*A11 + half_m_half_j*A12 + (neg_half+half_j)*A21 + half_m_half_j*A22 + half_m_half_j*A31 + (neg_half+half_j)*A32
-    a13 = half_m_half_j*A01 + (neg_half+half_j)*A02 + half_m_half_j*A11 + (neg_half+half_j)*A12 + half_m_half_j*A21 + (neg_half+half_j)*A22 + half_p_half_j*A31 + (neg_half+neg_half_j)*A32
-    a14 = half_j*A00 + neg_half*A01 + half*A02 + neg_half*A03 + half*A10 + neg_half_j*A11 + half_j*A12 + half_j*A13 + half*A20 + half_j*A21 + neg_half_j*A22 + half_j*A23 + half*A30 + neg_half_j*A31 + half_j*A32 + half_j*A33
-    a15 = (neg_half+half_j)*A02 + half_p_half_j*A03 + half_m_half_j*A12 + (neg_half+neg_half_j)*A13 + half_m_half_j*A22 + (neg_half+neg_half_j)*A23 + (neg_half+neg_half_j)*A32 + (neg_half+half_j)*A33
-    a16 = neg_half*A00 + half_j*A01 + half_j*A02 + neg_half_j*A03 + neg_half*A10 + neg_half_j*A11 + neg_half_j*A12 + neg_half_j*A13 + neg_half*A20 + half_j*A21 + half_j*A22 + neg_half_j*A23 + neg_half_j*A30 + half*A31 + half*A32 + half*A33
-    a17 = half_p_half_j*A00 + half_p_half_j*A01 + half_p_half_j*A10 + half_p_half_j*A11 + half_p_half_j*A20 + half_p_half_j*A21 + (neg_half+half_j)*A30 + (neg_half+half_j)*A31
-    a18 = half_j*A00 + half_j*A01 + neg_half*A02 + half_j*A03 + half_j*A10 + half_j*A11 + neg_half*A12 + half_j*A13 + half_j*A20 + half_j*A21 + half*A22 + neg_half_j*A23 + neg_half*A30 + neg_half*A31 + half_j*A32 + half*A33
-    a19 = half_m_half_j*A02 + half_p_half_j*A03 + half_m_half_j*A12 + half_p_half_j*A13 + half_m_half_j*A22 + half_p_half_j*A23 + half_p_half_j*A32 + (neg_half+half_j)*A33
-    a20 = half_p_half_j*A01 + (neg_half+neg_half_j)*A02 + half_p_half_j*A11 + (neg_half+neg_half_j)*A12 + (neg_half+neg_half_j)*A21 + half_p_half_j*A22 + half_m_half_j*A31 + (neg_half+half_j)*A32
-    
-    # Complete a21 to a47
-    a21 = half_j*A00 + neg_half_j*A01 + neg_half*A02 + neg_half_j*A03 + neg_half_j*A10 + half_j*A11 + half*A12 + half_j*A13 + neg_half_j*A20 + half_j*A21 + neg_half*A22 + neg_half_j*A23 + neg_half*A30 + half*A31 + half_j*A32 + neg_half*A33
-    a22 = (neg_half+neg_half_j)*A00 + (neg_half+half_j)*A03 + half_m_half_j*A10 + (neg_half+neg_half_j)*A13 + half_m_half_j*A20 + (neg_half+neg_half_j)*A23 + (neg_half+half_j)*A30 + half_p_half_j*A33
-    a23 = (neg_half+neg_half_j)*A02 + half_m_half_j*A03 + half_m_half_j*A12 + half_p_half_j*A13 + half_m_half_j*A22 + half_p_half_j*A23 + (neg_half+half_j)*A32 + (neg_half+neg_half_j)*A33
-    a24 = neg_half*A00 + half*A01 + neg_half_j*A02 + neg_half*A03 + neg_half_j*A10 + half_j*A11 + half*A12 + neg_half_j*A13 + neg_half_j*A20 + half_j*A21 + neg_half*A22 + half_j*A23 + half_j*A30 + neg_half_j*A31 + half*A32 + neg_half_j*A33
-    a25 = half_m_half_j*A02 + half_p_half_j*A03 + (neg_half+neg_half_j)*A12 + half_m_half_j*A13 + half_p_half_j*A22 + (neg_half+half_j)*A23 + half_p_half_j*A32 + (neg_half+half_j)*A33
-    a26 = half_p_half_j*A01 + half_p_half_j*A02 + (neg_half+neg_half_j)*A11 + (neg_half+neg_half_j)*A12 + half_p_half_j*A21 + half_p_half_j*A22 + half_m_half_j*A31 + half_m_half_j*A32
-    a27 = neg_half_j*A00 + neg_half_j*A01 + half*A02 + half_j*A03 + neg_half*A10 + neg_half*A11 + neg_half_j*A12 + half*A13 + neg_half*A20 + neg_half*A21 + half_j*A22 + neg_half*A23 + neg_half*A30 + neg_half*A31 + half_j*A32 + neg_half*A33
-    a28 = (neg_half+half_j)*A00 + (neg_half+half_j)*A01 + (neg_half+neg_half_j)*A10 + (neg_half+neg_half_j)*A11 + half_p_half_j*A20 + half_p_half_j*A21 + (neg_half+neg_half_j)*A30 + (neg_half+neg_half_j)*A31
-    a29 = half_p_half_j*A00 + half_m_half_j*A03 + (neg_half+neg_half_j)*A10 + (neg_half+half_j)*A13 + half_p_half_j*A20 + half_m_half_j*A23 + half_m_half_j*A30 + (neg_half+neg_half_j)*A33
-    a30 = half_p_half_j*A01 + half_p_half_j*A02 + (neg_half+neg_half_j)*A11 + (neg_half+neg_half_j)*A12 + (neg_half+neg_half_j)*A21 + (neg_half+neg_half_j)*A22 + (neg_half+half_j)*A31 + (neg_half+half_j)*A32
-    a31 = half*A00 + neg_half*A01 + neg_half_j*A02 + half*A03 + half*A10 + neg_half*A11 + neg_half_j*A12 + half*A13 + neg_half*A20 + half*A21 + neg_half_j*A22 + half*A23 + neg_half_j*A30 + half_j*A31 + half*A32 + half_j*A33
-    a32 = half_p_half_j*A02 + half_m_half_j*A03 + (neg_half+half_j)*A12 + half_p_half_j*A13 + half_m_half_j*A22 + (neg_half+neg_half_j)*A23 + (neg_half+half_j)*A32 + half_p_half_j*A33
-    a33 = half*A00 + half_j*A01 + neg_half_j*A02 + neg_half_j*A03 + neg_half*A10 + half_j*A11 + neg_half_j*A12 + half_j*A13 + neg_half*A20 + neg_half_j*A21 + half_j*A22 + half_j*A23 + half_j*A30 + half*A31 + neg_half*A32 + half*A33
-    a34 = neg_half_j*A00 + half_j*A01 + neg_half*A02 + half_j*A03 + neg_half*A10 + half*A11 + half_j*A12 + half*A13 + half*A20 + neg_half*A21 + half_j*A22 + half*A23 + half*A30 + neg_half*A31 + half_j*A32 + half*A33
-    a35 = half_m_half_j*A02 + half_p_half_j*A03 + (neg_half+half_j)*A12 + (neg_half+neg_half_j)*A13 + half_m_half_j*A22 + half_p_half_j*A23 + (neg_half+neg_half_j)*A32 + half_m_half_j*A33
-    a36 = (neg_half+neg_half_j)*A01 + (neg_half+neg_half_j)*A02 + (neg_half+half_j)*A11 + (neg_half+half_j)*A12 + half_m_half_j*A21 + half_m_half_j*A22 + half_m_half_j*A31 + half_m_half_j*A32
-    a37 = half*A00 + neg_half_j*A01 + neg_half_j*A02 + neg_half_j*A03 + half_j*A10 + neg_half*A11 + neg_half*A12 + half*A13 + half_j*A20 + half*A21 + half*A22 + half*A23 + neg_half_j*A30 + half*A31 + half*A32 + neg_half*A33
-    a38 = half_m_half_j*A01 + half_m_half_j*A02 + (neg_half+neg_half_j)*A11 + (neg_half+neg_half_j)*A12 + (neg_half+neg_half_j)*A21 + (neg_half+neg_half_j)*A22 + (neg_half+neg_half_j)*A31 + (neg_half+neg_half_j)*A32
-    a39 = neg_half*A00 + neg_half_j*A01 + neg_half_j*A02 + neg_half_j*A03 + neg_half*A10 + half_j*A11 + half_j*A12 + neg_half_j*A13 + half*A20 + half_j*A21 + half_j*A22 + half_j*A23 + half_j*A30 + half*A31 + half*A32 + neg_half*A33
-    a40 = (neg_half+neg_half_j)*A00 + (neg_half+neg_half_j)*A01 + half_p_half_j*A10 + half_p_half_j*A11 + (neg_half+neg_half_j)*A20 + (neg_half+neg_half_j)*A21 + (neg_half+half_j)*A30 + (neg_half+half_j)*A31
-    a41 = half_m_half_j*A00 + (neg_half+neg_half_j)*A03 + (neg_half+half_j)*A10 + half_p_half_j*A13 + (neg_half+half_j)*A20 + half_p_half_j*A23 + half_p_half_j*A30 + half_m_half_j*A33
-    a42 = half_p_half_j*A00 + (neg_half+half_j)*A03 + half_m_half_j*A10 + half_p_half_j*A13 + half_m_half_j*A20 + half_p_half_j*A23 + half_m_half_j*A30 + half_p_half_j*A33
-    a43 = half_j*A00 + half*A01 + neg_half*A02 + neg_half*A03 + half*A10 + half_j*A11 + neg_half_j*A12 + half_j*A13 + neg_half*A20 + half_j*A21 + neg_half_j*A22 + neg_half_j*A23 + neg_half*A30 + neg_half_j*A31 + half_j*A32 + neg_half_j*A33
-    a44 = half_m_half_j*A02 + (neg_half+neg_half_j)*A03 + (neg_half+neg_half_j)*A12 + (neg_half+half_j)*A13 + (neg_half+neg_half_j)*A22 + (neg_half+half_j)*A23 + (neg_half+neg_half_j)*A32 + (neg_half+half_j)*A33
-    a45 = (neg_half+half_j)*A00 + half_m_half_j*A01 + half_p_half_j*A10 + (neg_half+neg_half_j)*A11 + (neg_half+neg_half_j)*A20 + half_p_half_j*A21 + (neg_half+neg_half_j)*A30 + half_p_half_j*A31
-    a46 = half_m_half_j*A00 + half_p_half_j*A03 + half_m_half_j*A10 + half_p_half_j*A13 + half_m_half_j*A20 + half_p_half_j*A23 + half_p_half_j*A30 + (neg_half+half_j)*A33
-    a47 = half*A00 + half_j*A01 + half_j*A02 + neg_half_j*A03 + half_j*A10 + half*A11 + half*A12 + half*A13 + neg_half_j*A20 + half*A21 + half*A22 + neg_half*A23 + half_j*A30 + half*A31 + half*A32 + half*A33
-    
-    # Linear combinations of elements from B (optimized)
-    b0 = neg_half*B00 + neg_half*B10 + half*B20 + neg_half_j*B30
-    b1 = half_j*B01 + half_j*B03 + half_j*B11 + half_j*B13 + half_j*B21 + half_j*B23 + half*B31 + half*B33
-    b2 = half_p_half_j*B01 + (neg_half+neg_half_j)*B11 + half_p_half_j*B21 + half_m_half_j*B31
-    b3 = neg_half_j*B00 + half_j*B02 + neg_half_j*B11 + neg_half_j*B12 + half_j*B21 + half_j*B22 + half*B30 + neg_half*B32
-    b4 = neg_half*B00 + half*B02 + half*B03 + half*B10 + neg_half*B12 + neg_half*B13 + half*B20 + neg_half*B22 + neg_half*B23 + half_j*B30 + neg_half_j*B32 + neg_half_j*B33
-    b5 = half*B01 + half*B03 + half*B11 + half*B13 + half*B21 + half*B23 + half_j*B31 + half_j*B33
-    b6 = (neg_half+neg_half_j)*B01 + half_p_half_j*B11 + half_p_half_j*B21 + half_m_half_j*B31
-    b7 = neg_half*B00 + half*B03 + half*B10 + neg_half*B13 + neg_half*B20 + half*B23 + half_j*B30 + neg_half_j*B33
-    
-    # Continue with b8 to b47
-    b8 = half*B00 + neg_half*B02 + neg_half*B03 + half*B10 + neg_half*B12 + neg_half*B13 + half*B21 + neg_half_j*B31
-    b9 = half_j*B01 + half_j*B02 + half_j*B03 + half_j*B11 + half_j*B12 + half_j*B13 + neg_half_j*B21 + neg_half_j*B22 + neg_half_j*B23 + half*B31 + half*B32 + half*B33
-    b10 = half_j*B01 + half_j*B03 + neg_half_j*B11 + neg_half_j*B13 + neg_half_j*B21 + neg_half_j*B23 + neg_half*B31 + neg_half*B33
-    b11 = neg_half_j*B00 + half_j*B03 + neg_half_j*B10 + half_j*B13 + half_j*B21 + half_j*B22 + neg_half*B31 + neg_half*B32
-    b12 = neg_half*B00 + half*B02 + half*B03 + neg_half*B10 + half*B12 + half*B13 + half*B20 + neg_half*B22 + neg_half*B23 + half_j*B30 + neg_half_j*B32 + neg_half_j*B33
-    b13 = half_j*B00 + neg_half_j*B02 + neg_half_j*B10 + half_j*B12 + half_j*B20 + neg_half_j*B22 + neg_half*B30 + half*B32
-    b14 = neg_half*B01 + neg_half*B10 + half*B20 + half_j*B31
-    b15 = half_j*B00 + neg_half_j*B03 + half_j*B10 + neg_half_j*B13 + neg_half_j*B20 + half_j*B23 + half*B30 + neg_half*B33
-    b16 = half*B01 + half*B02 + half*B10 + neg_half*B12 + half*B20 + neg_half*B22 + neg_half_j*B31 + neg_half_j*B32
-    b17 = neg_half_j*B00 + half_j*B02 + neg_half_j*B10 + half_j*B12 + neg_half_j*B20 + half_j*B22 + half*B30 + neg_half*B32
-    b18 = neg_half_j*B01 + neg_half_j*B03 + neg_half_j*B11 + neg_half_j*B13 + neg_half_j*B20 + half_j*B22 + half*B30 + neg_half*B32
-    b19 = neg_half_j*B00 + half_j*B02 + half_j*B10 + neg_half_j*B12 + half_j*B20 + neg_half_j*B22 + half*B30 + neg_half*B32
-    b20 = neg_half_j*B01 + neg_half_j*B03 + neg_half_j*B11 + neg_half_j*B13 + half_j*B21 + half_j*B23 + half*B31 + half*B33
-    
-    # Complete b21 to b47
-    b21 = neg_half*B01 + neg_half*B02 + half*B11 + half*B12 + neg_half*B20 + half*B23 + half_j*B30 + neg_half_j*B33
-    b22 = neg_half_j*B00 + half_j*B02 + half_j*B03 + neg_half_j*B10 + half_j*B12 + half_j*B13 + neg_half_j*B20 + half_j*B22 + half_j*B23 + half*B30 + neg_half*B32 + neg_half*B33
-    b23 = neg_half*B00 + half*B02 + half*B03 + neg_half*B10 + half*B12 + half*B13 + neg_half*B20 + half*B22 + half*B23 + half_j*B30 + neg_half_j*B32 + neg_half_j*B33
-    b24 = half_j*B01 + neg_half_j*B11 + neg_half_j*B20 + half_j*B22 + half_j*B23 + half*B30 + neg_half*B32 + neg_half*B33
-    b25 = half_j*B01 + half_j*B02 + half_j*B03 + half_j*B11 + half_j*B12 + half_j*B13 + neg_half_j*B21 + neg_half_j*B22 + neg_half_j*B23 + neg_half*B31 + neg_half*B32 + neg_half*B33
-    b26 = half*B01 + half*B02 + neg_half*B11 + neg_half*B12 + neg_half*B21 + neg_half*B22 + neg_half_j*B31 + neg_half_j*B32
-    b27 = half_j*B01 + half_j*B02 + half_j*B03 + half_j*B11 + half_j*B12 + half_j*B13 + neg_half_j*B20 + neg_half*B30
-    b28 = half*B01 + half*B11 + half*B21 + neg_half_j*B31
-    b29 = half_j*B01 + half_j*B02 + neg_half_j*B11 + neg_half_j*B12 + half_j*B21 + half_j*B22 + neg_half*B31 + neg_half*B32
-    b30 = neg_half*B00 + half*B03 + neg_half*B10 + half*B13 + neg_half*B20 + half*B23 + half_j*B30 + neg_half_j*B33
-    b31 = half*B00 + neg_half*B02 + neg_half*B10 + half*B12 + neg_half*B21 + neg_half*B23 + half_j*B31 + half_j*B33
-    b32 = half_j*B01 + neg_half_j*B11 + neg_half_j*B21 + half*B31
-    b33 = neg_half*B01 + neg_half*B03 + half*B10 + neg_half*B13 + neg_half*B20 + half*B23 + neg_half_j*B31 + neg_half_j*B33
-    b34 = half_j*B00 + neg_half_j*B10 + half_j*B21 + half_j*B22 + half_j*B23 + neg_half*B31 + neg_half*B32 + neg_half*B33
-    b35 = neg_half_j*B01 + neg_half_j*B02 + half_j*B11 + half_j*B12 + neg_half_j*B21 + neg_half_j*B22 + neg_half*B31 + neg_half*B32
-    b36 = neg_half*B01 + neg_half*B02 + neg_half*B03 + neg_half*B11 + neg_half*B12 + neg_half*B13 + neg_half*B21 + neg_half*B22 + neg_half*B23 + neg_half_j*B31 + neg_half_j*B32 + neg_half_j*B33
-    b37 = half_j*B01 + half_j*B02 + half_j*B03 + neg_half_j*B10 + half_j*B12 + half_j*B13 + neg_half_j*B20 + half_j*B22 + half_j*B23 + neg_half*B31 + neg_half*B32 + neg_half*B33
-    b38 = half_j*B00 + neg_half_j*B10 + neg_half_j*B20 + neg_half*B30
-    b39 = neg_half_j*B00 + half_j*B03 + half_j*B11 + half_j*B13 + half_j*B21 + half_j*B23 + neg_half*B30 + half*B33
-    b40 = half_j*B01 + half_j*B02 + half_j*B11 + half_j*B12 + neg_half_j*B21 + neg_half_j*B22 + half*B31 + half*B32
-    b41 = half*B00 + neg_half*B03 + half*B10 + neg_half*B13 + neg_half*B20 + half*B23 + half_j*B30 + neg_half_j*B33
-    b42 = half_j*B00 + neg_half_j*B10 + half_j*B20 + half*B30
-    b43 = half*B00 + neg_half*B02 + neg_half*B03 + neg_half*B11 + neg_half*B12 + neg_half*B13 + half*B21 + half*B22 + half*B23 + neg_half_j*B30 + half_j*B32 + half_j*B33
-    b44 = neg_half_j*B00 + half_j*B10 + neg_half_j*B20 + half*B30
-    b45 = neg_half_j*B01 + neg_half_j*B02 + neg_half_j*B03 + half_j*B11 + half_j*B12 + half_j*B13 + neg_half_j*B21 + neg_half_j*B22 + neg_half_j*B23 + half*B31 + half*B32 + half*B33
-    b46 = neg_half*B00 + half*B02 + half*B10 + neg_half*B12 + half*B20 + neg_half*B22 + half_j*B30 + neg_half_j*B32
-    b47 = half*B00 + half*B11 + half*B21 + half_j*B30
-    
-    # Perform the 48 multiplications efficiently
-    m = np.zeros(48, dtype=out_dtype)
-    
-    # We can directly compute these multiplications
-    # Numbering is maintained for clarity
-    m[0] = a0 * b0
-    m[1] = a1 * b1
-    m[2] = a2 * b2
-    m[3] = a3 * b3
-    m[4] = a4 * b4
-    m[5] = a5 * b5
-    m[6] = a6 * b6
-    m[7] = a7 * b7
-    m[8] = a8 * b8
-    m[9] = a9 * b9
-    m[10] = a10 * b10
-    m[11] = a11 * b11
-    m[12] = a12 * b12
-    m[13] = a13 * b13
-    m[14] = a14 * b14
-    m[15] = a15 * b15
-    m[16] = a16 * b16
-    m[17] = a17 * b17
-    m[18] = a18 * b18
-    m[19] = a19 * b19
-    m[20] = a20 * b20
-    m[21] = a21 * b21
-    m[22] = a22 * b22
-    m[23] = a23 * b23
-    m[24] = a24 * b24
-    m[25] = a25 * b25
-    m[26] = a26 * b26
-    m[27] = a27 * b27
-    m[28] = a28 * b28
-    m[29] = a29 * b29
-    m[30] = a30 * b30
-    m[31] = a31 * b31
-    m[32] = a32 * b32
-    m[33] = a33 * b33
-    m[34] = a34 * b34
-    m[35] = a35 * b35
-    m[36] = a36 * b36
-    m[37] = a37 * b37
-    m[38] = a38 * b38
-    m[39] = a39 * b39
-    m[40] = a40 * b40
-    m[41] = a41 * b41
-    m[42] = a42 * b42
-    m[43] = a43 * b43
-    m[44] = a44 * b44
-    m[45] = a45 * b45
-    m[46] = a46 * b46
-    m[47] = a47 * b47
-    
-    # Construct the result matrix efficiently
-    # For C[0,0]
-    C[0,0] = half_j*m[0] + neg_half_j*m[1] + neg_half*m[5] + half*m[8] + half_j*m[9] + \
-             (neg_half+half_j)*m[11] + half*m[14] + neg_half_j*m[15] + (neg_half+neg_half_j)*m[16] + \
-             half_j*m[17] + (neg_half+neg_half_j)*m[18] + neg_half_j*m[24] + half_j*m[26] + \
-             half_j*m[27] + half*m[28] + half_j*m[30] + neg_half_j*m[32] + half*m[34] + \
-             half*m[36] + neg_half_j*m[37] + neg_half*m[38] + (half+neg_half_j)*m[39] + \
-             neg_half_j*m[40] + neg_half*m[42] + neg_half*m[43] + neg_half*m[44] + \
-             neg_half_j*m[46] + half*m[47]
-    
-    # For C[0,1]
-    C[0,1] = neg_half_j*m[0] + half*m[2] + (neg_half+neg_half_j)*m[3] + half*m[5] + \
-             half*m[6] + neg_half*m[8] + (half+neg_half_j)*m[11] + neg_half*m[12] + \
-             half_j*m[13] + half_j*m[14] + half_j*m[15] + neg_half_j*m[17] + \
-             (half+half_j)*m[18] + half*m[20] + neg_half*m[22] + half_j*m[24] + \
-             neg_half_j*m[27] + neg_half*m[28] + neg_half_j*m[29] + half_j*m[32] + \
-             (neg_half+neg_half_j)*m[33] + neg_half*m[34] + neg_half*m[37] + half_j*m[40] + \
-             half_j*m[41] + neg_half_j*m[43] + half*m[44] + neg_half_j*m[47]
-    
-    # For C[0,2]
-    C[0,2] = neg_half*m[2] + half*m[3] + neg_half*m[5] + neg_half_j*m[8] + half_j*m[11] + \
-             half*m[12] + neg_half_j*m[13] + neg_half_j*m[14] + neg_half_j*m[15] + \
-             neg_half*m[16] + neg_half*m[18] + half_j*m[19] + neg_half*m[20] + half_j*m[21] + \
-             neg_half*m[23] + neg_half_j*m[24] + neg_half*m[25] + half_j*m[26] + half*m[27] + \
-             half_j*m[30] + neg_half*m[31] + neg_half_j*m[32] + half*m[33] + half*m[34] + \
-             half_j*m[35] + half*m[36] + neg_half_j*m[37] + neg_half*m[38] + neg_half_j*m[39] + \
-             half_j*m[43] + neg_half*m[44] + half*m[47]
-    
-    # For C[0,3]
-    C[0,3] = half_j*m[0] + neg_half_j*m[1] + half_j*m[3] + neg_half_j*m[4] + neg_half*m[6] + \
-             half*m[7] + half*m[8] + half_j*m[9] + neg_half*m[10] + neg_half*m[11] + half*m[14] + \
-             neg_half_j*m[16] + half_j*m[17] + neg_half_j*m[18] + neg_half*m[21] + half*m[22] + \
-             half*m[24] + half_j*m[27] + half*m[28] + half_j*m[29] + neg_half_j*m[31] + \
-             half_j*m[33] + half_j*m[34] + half*m[37] + half*m[39] + neg_half_j*m[40] + \
-             neg_half_j*m[41] + neg_half*m[42] + neg_half*m[43] + neg_half_j*m[45] + \
-             neg_half_j*m[46] + half_j*m[47]
-    
-    # For C[1,0]
-    C[1,0] = neg_half*m[0] + neg_half*m[1] + neg_half*m[5] + neg_half_j*m[8] + neg_half_j*m[9] + \
-             (half+neg_half_j)*m[11] + neg_half_j*m[14] + half_j*m[15] + (neg_half+half_j)*m[16] + \
-             half_j*m[17] + (neg_half+neg_half_j)*m[18] + neg_half*m[24] + half*m[26] + \
-             neg_half*m[27] + neg_half_j*m[28] + half*m[30] + neg_half*m[32] + half_j*m[34] + \
-             half*m[36] + neg_half*m[37] + neg_half*m[38] + (neg_half+neg_half_j)*m[39] + \
-             half_j*m[40] + half*m[42] + half_j*m[43] + neg_half_j*m[44] + neg_half*m[46] + \
-             neg_half_j*m[47]
-    
-    # For C[1,1]
-    C[1,1] = half*m[0] + neg_half*m[2] + (half+neg_half_j)*m[3] + half*m[5] + half*m[6] + \
-             half_j*m[8] + (neg_half+half_j)*m[11] + half*m[12] + neg_half*m[13] + \
-             neg_half*m[14] + neg_half_j*m[15] + neg_half_j*m[17] + (half+half_j)*m[18] + \
-             half_j*m[20] + neg_half*m[22] + half*m[24] + half*m[27] + half_j*m[28] + \
-             half*m[29] + half*m[32] + (half+neg_half_j)*m[33] + neg_half_j*m[34] + \
-             neg_half_j*m[37] + neg_half_j*m[40] + neg_half*m[41] + half*m[43] + \
-             half_j*m[44] + half*m[47]
-    
-    # For C[1,2]
-    C[1,2] = half*m[2] + neg_half*m[3] + neg_half*m[5] + neg_half*m[8] + neg_half_j*m[11] + \
-             neg_half*m[12] + half*m[13] + half*m[14] + half_j*m[15] + neg_half*m[16] + \
-             neg_half*m[18] + half_j*m[19] + neg_half_j*m[20] + neg_half_j*m[21] + half_j*m[23] + \
-             neg_half*m[24] + neg_half_j*m[25] + half*m[26] + half_j*m[27] + half*m[30] + \
-             neg_half*m[31] + neg_half*m[32] + neg_half*m[33] + half_j*m[34] + neg_half_j*m[35] + \
-             half*m[36] + neg_half*m[37] + neg_half*m[38] + neg_half_j*m[39] + neg_half*m[43] + \
-             neg_half_j*m[44] + neg_half_j*m[47]
-    
-    # For C[1,3]
-    C[1,3] = neg_half*m[0] + neg_half*m[1] + half_j*m[3] + neg_half*m[4] + neg_half*m[6] + \
-             neg_half*m[7] + neg_half_j*m[8] + neg_half_j*m[9] + neg_half*m[10] + half*m[11] + \
-             neg_half_j*m[14] + half_j*m[16] + half_j*m[17] + neg_half_j*m[18] + half*m[21] + \
-             half*m[22] + neg_half_j*m[24] + neg_half*m[27] + neg_half_j*m[28] + neg_half*m[29] + \
-             neg_half_j*m[31] + half_j*m[33] + neg_half*m[34] + half_j*m[37] + neg_half*m[39] + \
-             half_j*m[40] + half*m[41] + half*m[42] + half_j*m[43] + half*m[45] + \
-             neg_half*m[46] + neg_half*m[47]
-    
-    # For C[2,0]
-    C[2,0] = neg_half_j*m[0] + half_j*m[1] + half_j*m[5] + neg_half_j*m[8] + half*m[9] + \
-             (half+half_j)*m[11] + half_j*m[14] + neg_half*m[15] + (neg_half+neg_half_j)*m[16] + \
-             half*m[17] + (neg_half+half_j)*m[18] + neg_half*m[24] + half_j*m[26] + half*m[27] + \
-             neg_half*m[28] + neg_half_j*m[30] + neg_half_j*m[32] + neg_half_j*m[34] + \
-             neg_half_j*m[36] + neg_half*m[37] + neg_half_j*m[38] + (neg_half+half_j)*m[39] + \
-             neg_half*m[40] + neg_half_j*m[42] + half_j*m[43] + neg_half*m[44] + \
-             neg_half_j*m[46] + half_j*m[47]
-    
-    # For C[2,1]
-    C[2,1] = half_j*m[0] + half_j*m[2] + (neg_half+neg_half_j)*m[3] + neg_half_j*m[5] + \
-             half_j*m[6] + half_j*m[8] + (neg_half+neg_half_j)*m[11] + half_j*m[12] + \
-             half_j*m[13] + neg_half*m[14] + half*m[15] + neg_half*m[17] + (half+neg_half_j)*m[18] + \
-             neg_half*m[20] + half_j*m[22] + half*m[24] + neg_half*m[27] + half*m[28] + \
-             neg_half_j*m[29] + half_j*m[32] + (half+half_j)*m[33] + half_j*m[34] + half_j*m[37] + \
-             half*m[40] + neg_half_j*m[41] + neg_half*m[43] + half*m[44] + half*m[47]
-    
-    # For C[2,2]
-    C[2,2] = neg_half_j*m[2] + half*m[3] + half_j*m[5] + half*m[8] + half_j*m[11] + neg_half_j*m[12] + \
-             neg_half_j*m[13] + half*m[14] + neg_half*m[15] + neg_half*m[16] + neg_half*m[18] + \
-             neg_half*m[19] + half*m[20] + neg_half_j*m[21] + half*m[23] + neg_half*m[24] + \
-             half*m[25] + half_j*m[26] + half_j*m[27] + neg_half_j*m[30] + half*m[31] + \
-             neg_half_j*m[32] + neg_half*m[33] + neg_half_j*m[34] + neg_half*m[35] + \
-             neg_half_j*m[36] + neg_half*m[37] + neg_half_j*m[38] + half_j*m[39] + half*m[43] + \
-             neg_half*m[44] + half_j*m[47]
-    
-    # For C[2,3]
-    C[2,3] = neg_half_j*m[0] + half_j*m[1] + half_j*m[3] + neg_half_j*m[4] + neg_half_j*m[6] + \
-             half_j*m[7] + neg_half_j*m[8] + half*m[9] + neg_half_j*m[10] + half*m[11] + \
-             half_j*m[14] + neg_half_j*m[16] + half*m[17] + half_j*m[18] + neg_half*m[21] + \
-             neg_half_j*m[22] + half_j*m[24] + half*m[27] + neg_half*m[28] + half_j*m[29] + \
-             neg_half_j*m[31] + neg_half_j*m[33] + neg_half*m[34] + neg_half_j*m[37] + \
-             neg_half*m[39] + neg_half*m[40] + half_j*m[41] + neg_half_j*m[42] + half_j*m[43] + \
-             neg_half_j*m[45] + neg_half_j*m[46] + neg_half*m[47]
-    
-    # For C[3,0]
-    C[3,0] = neg_half_j*m[0] + neg_half_j*m[1] + half*m[5] + half_j*m[8] + half_j*m[9] + \
-             (neg_half+half_j)*m[11] + neg_half_j*m[14] + neg_half_j*m[15] + (half+half_j)*m[16] + \
-             neg_half_j*m[17] + (half+half_j)*m[18] + half*m[24] + neg_half_j*m[26] + half*m[27] + \
-             half*m[28] + half_j*m[30] + half_j*m[32] + neg_half_j*m[34] + neg_half*m[36] + \
-             half*m[37] + neg_half*m[38] + (half+neg_half_j)*m[39] + neg_half_j*m[40] + \
-             half*m[42] + neg_half_j*m[43] + neg_half*m[44] + half_j*m[46] + neg_half_j*m[47]
-    
-    # For C[3,1]
-    C[3,1] = half_j*m[0] + neg_half*m[2] + (neg_half+neg_half_j)*m[3] + neg_half*m[5] + half*m[6] + \
-             neg_half_j*m[8] + (half+neg_half_j)*m[11] + neg_half*m[12] + half_j*m[13] + \
-             neg_half*m[14] + half_j*m[15] + half_j*m[17] + (neg_half+neg_half_j)*m[18] + \
-             neg_half*m[20] + half*m[22] + neg_half*m[24] + neg_half*m[27] + neg_half*m[28] + \
-             neg_half_j*m[29] + neg_half_j*m[32] + (half+half_j)*m[33] + half_j*m[34] + \
-             half_j*m[37] + half_j*m[40] + neg_half_j*m[41] + neg_half*m[43] + half*m[44] + \
-             half*m[47]
-    
-    # For C[3,2]
-    C[3,2] = half*m[2] + half_j*m[3] + half*m[5] + neg_half*m[8] + neg_half*m[11] + half*m[12] + \
-             neg_half_j*m[13] + half*m[14] + neg_half_j*m[15] + half_j*m[16] + half_j*m[18] + \
-             half_j*m[19] + half*m[20] + half*m[21] + neg_half*m[23] + half*m[24] + half*m[25] + \
-             neg_half_j*m[26] + half_j*m[27] + half_j*m[30] + neg_half_j*m[31] + half_j*m[32] + \
-             neg_half_j*m[33] + neg_half_j*m[34] + neg_half_j*m[35] + neg_half*m[36] + half*m[37] + \
-             neg_half*m[38] + half*m[39] + half*m[43] + neg_half*m[44] + neg_half_j*m[47]
-    
-    # For C[3,3]
-    C[3,3] = neg_half_j*m[0] + neg_half_j*m[1] + half*m[3] + half_j*m[4] + neg_half*m[6] + \
-             neg_half*m[7] + half_j*m[8] + half_j*m[9] + neg_half*m[10] + half_j*m[11] + \
-             neg_half_j*m[14] + half*m[16] + neg_half_j*m[17] + half*m[18] + neg_half_j*m[21] + \
-             neg_half*m[22] + neg_half_j*m[24] + half*m[27] + half*m[28] + half_j*m[29] + \
-             neg_half*m[31] + neg_half*m[33] + neg_half*m[34] + neg_half_j*m[37] + \
-             neg_half_j*m[39] + neg_half_j*m[40] + half_j*m[41] + half*m[42] + neg_half_j*m[43] + \
-             neg_half_j*m[45] + half_j*m[46] + neg_half*m[47]
-    
-    # If input was real numeric (not object), ensure output is real
-    if is_real_input:
-        for i in range(4):
-            for j in range(4):
-                C[i,j] = C[i,j].real
-    
-    return C
+    A = np.asarray(A, dtype=object)
+    B = np.asarray(B, dtype=object)
+    assert A.shape == (4, 4) and B.shape == (4, 4)
+
+    # Input aliases (1-indexed names from the SLP)
+    A11, A12, A13, A14 = A[0, 0], A[0, 1], A[0, 2], A[0, 3]
+    A21, A22, A23, A24 = A[1, 0], A[1, 1], A[1, 2], A[1, 3]
+    A31, A32, A33, A34 = A[2, 0], A[2, 1], A[2, 2], A[2, 3]
+    A41, A42, A43, A44 = A[3, 0], A[3, 1], A[3, 2], A[3, 3]
+
+    B11, B12, B13, B14 = B[0, 0], B[0, 1], B[0, 2], B[0, 3]
+    B21, B22, B23, B24 = B[1, 0], B[1, 1], B[1, 2], B[1, 3]
+    B31, B32, B33, B34 = B[2, 0], B[2, 1], B[2, 2], B[2, 3]
+    B41, B42, B43, B44 = B[3, 0], B[3, 1], B[3, 2], B[3, 3]
+
+    # L: linear forms in A
+    x16 = A13 + A24
+    x17 = A14 + A23
+    x18 = A12 - A21
+    x19 = A31 - A42
+    x20 = A33 + A44
+    x21 = A34 + A43
+    x22 = A22 - A11
+    x23 = A32 - A41
+    x24 = A13 - A23
+    x25 = A32 - A42
+    x26 = A33 + A43
+    x27 = A31 - A41
+    x28 = A34 + A44
+    x29 = A12 + A22
+    x30 = A11 + A21
+    x31 = A14 - A24
+    x32 = x23 - x19
+    x33 = x16 + x17
+    x34 = x20 - x21
+    x35 = x22 - x18
+    x36 = x20 + x21
+    x37 = x18 + x22
+    x38 = x16 - x17
+    x39 = x19 + x23
+    x40 = x29 + x30
+    x41 = x25 - x27
+    x42 = x26 - x28
+    x43 = x24 + x31
+    l8 = x32 - x43
+    x45 = A33 - A43
+    x46 = A31 + A41
+    x47 = A13 + A23
+    l34 = x34 + x40
+    l27 = x33 - x41
+    x50 = A32 + A42
+    x51 = A12 - A22
+    x52 = A14 + A24
+    l24 = x42 - x35
+    x54 = A34 - A44
+    x55 = A11 - A21
+    x56 = x17 + x18
+    x57 = x34 - x35
+    x59 = x37 + x32
+    x60 = x38 + x46 + x50
+    l38 = x29 - x25
+    x63 = x36 + x33
+    l2 = x26 - x24
+    x66 = x36 - x33
+    l6 = x28 - x31
+    l36 = x25 + x29
+    l12 = x24 + x26
+    x71 = x34 + x35
+    x72 = x39 - x38
+    x73 = x16 - x22
+    l22 = x28 + x31
+    x75 = x52 - x39 - x47
+    x76 = x38 + x39
+    x77 = x37 - x32
+    x78 = x55 + x36 - x51
+    l9 = x27 + x30
+    x80 = x45 + x54 - x37
+    l42 = x30 - x27
+    x82 = x19 + x20
+    x83 = x21 + x23
+    l0 = l27 - x80
+    l1 = x27 - x55
+    l3 = x42 - x33
+    l4 = l24 + x60
+    l5 = x57 - x76
+    l7 = x57 + x76
+    l10 = x71 + x72
+    l11 = x56 + x83
+    l13 = x47 - x26
+    l14 = l42 - l2
+    l15 = x72 - x71
+    l16 = x40 + x32
+    l17 = x77 - x66
+    l18 = x56 - x83
+    l19 = x66 + x77
+    l20 = x24 - x45
+    l21 = x73 + x82
+    l23 = x78 - l8
+    l25 = l27 + x80
+    l26 = x29 + x50
+    l28 = x78 + l8
+    l29 = x28 + x52
+    l30 = x25 + x51
+    l31 = x73 - x82
+    l32 = x60 - l24
+    l33 = x34 - x43
+    l35 = x63 - x59
+    l37 = l36 + l22
+    l39 = x35 - x41
+    l40 = x59 + x63
+    l41 = x31 + x54
+    l43 = l12 + l9
+    l44 = l34 + x75
+    l45 = l34 - x75
+    l46 = x46 - x30
+    l47 = l6 - l38
+
+    # R: linear forms in B
+    y16 = B21 - B23
+    y17 = B32 + B33
+    y18 = B42 + B44
+    y19 = B11 - B14
+    y20 = B41 - B43
+    y21 = B31 - B34
+    y22 = B22 + B24
+    y23 = B12 + B13
+    r15 = y19 - y21
+    r17 = y16 + y20
+    r40 = y23 - y17
+    y27 = y18 + B43
+    r39 = y22 + y19
+    r3 = y17 + y20
+    y30 = B13 - y19
+    r5 = y18 + y22
+    y32 = B24 - r17
+    y33 = y17 + B34
+    r33 = y18 - y21
+    y35 = B24 - y16
+    r16 = y16 - y23
+    y37 = r15 - B13
+    r32 = B22 + B12
+    y39 = r39 - r33
+    y40 = y17 + y37
+    y41 = y18 + y32
+    y42 = r17 - r40
+    r28 = B22 - B12
+    r0 = B31 + B41
+    y45 = B34 - r40
+    y46 = r15 + r5
+    y47 = r3 - r16
+    r11 = y42 - y46
+    r44 = B41 - B31
+    r29 = B42 + B43 - y17
+    r45 = y33 - y27
+    r6 = B22 - B42
+    r1 = B12 + B14 - y22
+    r19 = y20 - y16
+    r31 = y39 - y47
+    r42 = B11 + B31
+    r36 = B23 + y22 + y27
+    r37 = y27 + y35
+    r9 = B14 - y45
+    r18 = y42 + y46
+    r2 = B12 + B32
+    r24 = y40 - y41 + r32
+    r14 = B12 - B31
+    r26 = B22 + B23 + y23
+    r47 = B22 + B41
+    r46 = B11 - B13 + y16
+    r38 = B41 - B21
+    r10 = y22 - y18
+    r27 = y27 + r39 + r0 + y45 - y16
+    r43 = y33 - y30
+    r4 = y30 + y35
+    r23 = y35 - y30
+    r8 = y40 + y41 - r28
+    r13 = B31 - B33 - y20
+    r21 = y39 + y47
+    r7 = y19 + y21
+    r22 = B44 + y32
+    r30 = B24 + y19 - B21
+    r12 = B33 + y37
+    r41 = B41 - B44 + y21
+    r20 = B32 + B34 + y18
+    r25 = y27 + y33
+    r35 = y17 + y23
+    r34 = (r44 + r32) * 2 - r24
+
+    L = [
+        l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11,
+        l12, l13, l14, l15, l16, l17, l18, l19, l20, l21,
+        l22, l23, l24, l25, l26, l27, l28, l29, l30, l31,
+        l32, l33, l34, l35, l36, l37, l38, l39, l40, l41,
+        l42, l43, l44, l45, l46, l47,
+    ]
+    R = [
+        r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11,
+        r12, r13, r14, r15, r16, r17, r18, r19, r20, r21,
+        r22, r23, r24, r25, r26, r27, r28, r29, r30, r31,
+        r32, r33, r34, r35, r36, r37, r38, r39, r40, r41,
+        r42, r43, r44, r45, r46, r47,
+    ]
+
+    p = [L[i] * R[i] for i in range(48)]
+
+    # P: output linear combinations of products (solved from L/R)
+    P_COEFFS = [
+        [0, Fraction(-1, 2), 0, 0, 0, 0, 0, 0, Fraction(1, 8), Fraction(1, 2), 0, Fraction(1, 4), 0, 0, Fraction(-1, 4), Fraction(1, 4), 0, 0, 0, 0, 0, 0, 0, 0, Fraction(-1, 8), 0, 0, Fraction(1, 8), Fraction(1, 4), 0, Fraction(-1, 2), 0, 0, 0, Fraction(-1, 8), 0, 0, Fraction(1, 4), Fraction(-1, 2), Fraction(-1, 2), Fraction(1, 4), 0, 0, Fraction(1, 4), Fraction(1, 4), 0, 0, Fraction(-1, 4)],
+        [0, 0, 0, Fraction(-1, 2), 0, 0, Fraction(1, 2), 0, Fraction(-1, 8), 0, 0, Fraction(-1, 4), Fraction(-1, 2), Fraction(1, 2), Fraction(1, 4), Fraction(-1, 4), 0, 0, 0, 0, 0, 0, 0, 0, Fraction(1, 8), 0, 0, Fraction(-1, 8), Fraction(-1, 4), Fraction(1, 2), 0, 0, 0, 0, Fraction(1, 8), 0, 0, Fraction(-1, 4), 0, 0, Fraction(-1, 4), 0, 0, Fraction(1, 4), Fraction(-1, 4), 0, 0, Fraction(-1, 4)],
+        [0, 0, 0, Fraction(1, 4), 0, 0, 0, 0, Fraction(-1, 8), 0, 0, Fraction(1, 8), Fraction(1, 2), Fraction(-1, 2), Fraction(-1, 4), Fraction(1, 4), Fraction(-1, 4), 0, Fraction(-1, 8), Fraction(1, 4), 0, Fraction(1, 8), 0, Fraction(-1, 4), Fraction(-1, 8), 0, 0, Fraction(1, 8), 0, 0, Fraction(-1, 2), Fraction(-1, 8), 0, Fraction(1, 4), Fraction(-1, 8), 0, 0, Fraction(1, 4), Fraction(-1, 2), Fraction(-1, 4), 0, 0, 0, Fraction(-1, 4), Fraction(1, 4), 0, 0, Fraction(-1, 4)],
+        [0, Fraction(-1, 2), 0, Fraction(1, 4), 0, 0, Fraction(-1, 2), 0, Fraction(1, 8), Fraction(1, 2), Fraction(-1, 4), Fraction(1, 8), 0, 0, Fraction(-1, 4), 0, Fraction(1, 4), 0, Fraction(1, 8), 0, 0, Fraction(-1, 8), 0, 0, Fraction(-1, 8), 0, 0, Fraction(1, 8), Fraction(1, 4), Fraction(-1, 2), 0, Fraction(-1, 8), 0, Fraction(-1, 4), Fraction(1, 8), 0, 0, Fraction(1, 4), 0, Fraction(-1, 4), Fraction(1, 4), 0, 0, Fraction(1, 4), 0, Fraction(1, 4), 0, Fraction(1, 4)],
+        [0, Fraction(1, 2), 0, 0, 0, Fraction(1, 4), 0, 0, Fraction(-1, 8), 0, 0, 0, 0, 0, Fraction(1, 4), 0, 0, Fraction(1, 4), Fraction(-1, 4), 0, 0, 0, 0, 0, Fraction(1, 8), 0, 0, Fraction(1, 8), Fraction(-1, 4), 0, Fraction(1, 2), 0, 0, 0, Fraction(-1, 8), 0, Fraction(1, 2), Fraction(-1, 4), 0, Fraction(1, 2), 0, 0, Fraction(1, 2), Fraction(-1, 4), Fraction(1, 4), 0, 0, Fraction(1, 4)],
+        [0, 0, Fraction(1, 2), Fraction(-1, 2), 0, Fraction(-1, 4), 0, 0, Fraction(1, 8), 0, 0, 0, 0, Fraction(1, 2), Fraction(1, 4), 0, 0, Fraction(-1, 4), Fraction(1, 4), 0, 0, 0, Fraction(1, 2), 0, Fraction(-1, 8), 0, 0, Fraction(-1, 8), Fraction(1, 4), Fraction(1, 2), 0, 0, 0, 0, Fraction(1, 8), 0, 0, Fraction(-1, 4), 0, 0, 0, 0, 0, Fraction(1, 4), Fraction(-1, 4), 0, 0, Fraction(-1, 4)],
+        [0, 0, Fraction(-1, 2), Fraction(1, 4), 0, Fraction(1, 4), 0, 0, Fraction(1, 8), 0, 0, Fraction(1, 8), 0, Fraction(-1, 2), Fraction(-1, 4), 0, Fraction(-1, 4), 0, Fraction(-1, 8), 0, 0, Fraction(-1, 8), 0, Fraction(1, 4), Fraction(1, 8), 0, 0, Fraction(1, 8), 0, 0, Fraction(1, 2), Fraction(1, 8), 0, Fraction(-1, 4), Fraction(-1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(-1, 4), 0, Fraction(1, 4), 0, 0, 0, Fraction(-1, 4), Fraction(1, 4), 0, 0, Fraction(1, 4)],
+        [0, Fraction(1, 2), 0, Fraction(1, 4), 0, 0, 0, Fraction(1, 4), Fraction(-1, 8), 0, 0, Fraction(-1, 8), 0, 0, Fraction(1, 4), 0, Fraction(1, 4), Fraction(1, 4), Fraction(-1, 8), 0, 0, Fraction(-1, 8), Fraction(-1, 2), 0, Fraction(1, 8), 0, 0, Fraction(1, 8), Fraction(-1, 4), Fraction(-1, 2), 0, Fraction(-1, 8), 0, Fraction(1, 4), Fraction(1, 8), 0, 0, Fraction(1, 4), 0, Fraction(1, 4), 0, 0, Fraction(1, 2), Fraction(-1, 4), 0, Fraction(1, 4), 0, Fraction(1, 4)],
+        [Fraction(-1, 4), 0, 0, 0, 0, 0, 0, 0, Fraction(1, 8), Fraction(1, 2), 0, Fraction(1, 4), 0, 0, Fraction(1, 4), Fraction(1, 4), Fraction(1, 2), 0, 0, 0, 0, 0, 0, 0, Fraction(-1, 8), 0, Fraction(1, 2), Fraction(1, 8), 0, 0, 0, 0, Fraction(-1, 4), 0, Fraction(-1, 8), 0, 0, Fraction(1, 4), Fraction(1, 2), 0, Fraction(1, 4), 0, 0, Fraction(1, 4), 0, 0, Fraction(1, 2), Fraction(1, 4)],
+        [Fraction(1, 4), 0, 0, 0, 0, 0, Fraction(-1, 2), 0, Fraction(-1, 8), 0, 0, Fraction(-1, 4), Fraction(-1, 2), 0, Fraction(-1, 4), Fraction(-1, 4), 0, 0, 0, 0, Fraction(-1, 2), 0, 0, 0, Fraction(1, 8), 0, 0, Fraction(-1, 8), 0, 0, 0, 0, Fraction(1, 4), Fraction(-1, 2), Fraction(1, 8), 0, 0, Fraction(-1, 4), 0, 0, Fraction(-1, 4), Fraction(1, 2), 0, Fraction(1, 4), 0, 0, 0, Fraction(1, 4)],
+        [0, 0, 0, Fraction(1, 4), 0, 0, 0, 0, Fraction(1, 8), 0, 0, Fraction(1, 8), Fraction(1, 2), 0, Fraction(1, 4), Fraction(1, 4), Fraction(1, 4), 0, Fraction(1, 8), Fraction(-1, 4), Fraction(1, 2), Fraction(1, 8), 0, 0, Fraction(-1, 8), Fraction(1, 4), Fraction(1, 2), Fraction(-1, 8), 0, 0, 0, Fraction(1, 8), Fraction(-1, 4), Fraction(1, 4), Fraction(-1, 8), 0, 0, Fraction(1, 4), Fraction(1, 2), Fraction(1, 4), 0, 0, 0, Fraction(-1, 4), 0, 0, 0, Fraction(1, 4)],
+        [Fraction(-1, 4), 0, 0, Fraction(-1, 4), Fraction(1, 4), 0, Fraction(1, 2), 0, Fraction(1, 8), Fraction(1, 2), Fraction(1, 4), Fraction(1, 8), 0, 0, Fraction(1, 4), 0, Fraction(1, 4), 0, Fraction(-1, 8), 0, 0, Fraction(-1, 8), 0, 0, Fraction(1, 8), 0, 0, Fraction(1, 8), 0, 0, 0, Fraction(1, 8), 0, Fraction(1, 4), Fraction(-1, 8), 0, 0, Fraction(1, 4), 0, Fraction(-1, 4), Fraction(1, 4), Fraction(-1, 2), 0, Fraction(1, 4), 0, 0, Fraction(1, 2), Fraction(-1, 4)],
+        [Fraction(1, 4), 0, 0, 0, 0, Fraction(-1, 4), 0, 0, Fraction(1, 8), 0, 0, 0, 0, 0, Fraction(1, 4), 0, Fraction(1, 2), Fraction(-1, 4), Fraction(1, 4), 0, 0, 0, 0, 0, Fraction(-1, 8), 0, Fraction(1, 2), Fraction(-1, 8), 0, 0, 0, 0, Fraction(-1, 4), 0, Fraction(1, 8), 0, Fraction(-1, 2), Fraction(1, 4), 0, 0, 0, 0, Fraction(1, 2), Fraction(1, 4), 0, 0, Fraction(1, 2), Fraction(1, 4)],
+        [Fraction(-1, 4), 0, Fraction(1, 2), 0, 0, Fraction(1, 4), 0, 0, Fraction(-1, 8), 0, 0, 0, 0, 0, Fraction(1, 4), 0, 0, Fraction(1, 4), Fraction(-1, 4), 0, Fraction(1, 2), 0, Fraction(-1, 2), 0, Fraction(1, 8), 0, 0, Fraction(1, 8), 0, 0, 0, 0, Fraction(1, 4), Fraction(1, 2), Fraction(-1, 8), 0, 0, Fraction(1, 4), 0, 0, 0, Fraction(-1, 2), 0, Fraction(-1, 4), 0, 0, 0, Fraction(-1, 4)],
+        [0, 0, Fraction(-1, 2), Fraction(1, 4), 0, Fraction(-1, 4), 0, 0, Fraction(1, 8), 0, 0, Fraction(1, 8), 0, 0, Fraction(-1, 4), 0, Fraction(1, 4), 0, Fraction(1, 8), 0, Fraction(-1, 2), Fraction(-1, 8), 0, 0, Fraction(-1, 8), Fraction(-1, 4), Fraction(1, 2), Fraction(1, 8), 0, 0, 0, Fraction(-1, 8), Fraction(-1, 4), Fraction(-1, 4), Fraction(1, 8), Fraction(1, 4), Fraction(-1, 2), Fraction(1, 4), 0, Fraction(-1, 4), 0, 0, 0, Fraction(1, 4), 0, 0, 0, Fraction(1, 4)],
+        [Fraction(1, 4), 0, 0, Fraction(-1, 4), Fraction(1, 4), 0, 0, Fraction(1, 4), Fraction(1, 8), 0, 0, Fraction(-1, 8), 0, 0, Fraction(1, 4), 0, Fraction(1, 4), Fraction(-1, 4), Fraction(1, 8), 0, 0, Fraction(-1, 8), Fraction(1, 2), 0, Fraction(1, 8), 0, 0, Fraction(-1, 8), 0, 0, 0, Fraction(1, 8), 0, Fraction(-1, 4), Fraction(1, 8), 0, 0, Fraction(-1, 4), 0, Fraction(1, 4), 0, Fraction(1, 2), Fraction(1, 2), Fraction(1, 4), 0, 0, Fraction(1, 2), Fraction(1, 4)],
+    ]
+
+    C_flat = []
+    for coeffs in P_COEFFS:
+        acc = 0
+        for coeff, pi in zip(coeffs, p):
+            if coeff:
+                acc += coeff * pi
+        C_flat.append(acc)
+
+    return np.array(C_flat, dtype=object).reshape(4, 4)
 
 # ----------------------------
 # Hybrid 16x16 = (rank-48 block) x (46-mult base)
